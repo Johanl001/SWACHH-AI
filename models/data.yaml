@@ -1,0 +1,37 @@
+# ═══════════════════════════════════════════════════════════════
+#  SWACHH-AI — YOLOv8 Waste Classification Dataset Config
+# ═══════════════════════════════════════════════════════════════
+#
+#  Two-Dataset Strategy:
+#    1. Master Dataset (TrashNet/TACO) → Global shapes & textures
+#    2. Custom Indian Dataset          → Local branding, crumpled packets
+#
+#  After running prepare_dataset.py, the merged dataset lives at:
+#    datasets/waste_merged/
+#
+# ═══════════════════════════════════════════════════════════════
+
+# ── Paths ──────────────────────────────────────────────────────
+path: ./datasets/waste_merged        # Root dataset directory
+train: images/train                   # Train images (relative to 'path')
+val: images/val                       # Validation images (relative to 'path')
+test: images/test                     # Test images (optional)
+
+# ── Classes ────────────────────────────────────────────────────
+nc: 4                                 # Number of classes
+
+names:
+  0: Plastic
+  1: Organic
+  2: Paper
+  3: Metal
+
+# ── Dataset Statistics (populated after prepare_dataset.py) ────
+# These are approximate targets for a balanced dataset:
+#
+#   Class      |  Train  |  Val   |  Test
+#   -----------|---------|--------|-------
+#   Plastic    |  ~1500  |  ~300  |  ~150
+#   Organic    |  ~1500  |  ~300  |  ~150
+#   Paper      |  ~1500  |  ~300  |  ~150
+#   Metal      |  ~1500  |  ~300  |  ~150

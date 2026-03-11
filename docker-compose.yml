@@ -1,0 +1,74 @@
+version: "3.9"
+
+services:
+  # ─────────────────────────────────────────────
+  # Mosquitto MQTT Broker
+  # ─────────────────────────────────────────────
+  mqtt_broker:
+    image: eclipse-mosquitto:2.0
+    container_name: swachh_mqtt
+    restart: unless-stopped
+    ports:
+      - "1883:1883"   # MQTT
+      - "9001:9001"   # WebSocket (for admin dashboard)
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+    networks:
+      - swachh_net
+
+  # ─────────────────────────────────────────────
+  # Edge AI Vision Service (Module A)
+  # Runs on Raspberry Pi — containerized for dev
+  # ─────────────────────────────────────────────
+  edge_ai:
+    build:
+      context: ./edge_ai
+      dockerfile: Dockerfile
+    container_name: swachh_edge_ai
+    restart: unless-stopped
+    privileged: true        # GPIO + Camera access
+    devices:
+      - /dev/video0:/dev/video0
+    volumes:
+      - ./edge_ai:/app
+      - ./models:/app/models
+    environment:
+      - MQTT_BROKER=mqtt_broker
+      - MQTT_PORT=1883
+      - MODEL_PATH=/app/models/yolov8_waste.tflite
+      - TRIGGER_DISTANCE_CM=20
+    depends_on:
+      - mqtt_broker
+    networks:
+      - swachh_net
+
+  # ─────────────────────────────────────────────
+  # Gateway Service (Module B — MQTT Bridge)
+  # Receives ESP-NOW data and publishes to MQTT
+  # ─────────────────────────────────────────────
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    container_name: swachh_gateway
+    restart: unless-stopped
+    privileged: true        # Serial port access
+    devices:
+      - /dev/ttyUSB0:/dev/ttyUSB0
+    volumes:
+      - ./gateway:/app
+    environment:
+      - MQTT_BROKER=mqtt_broker
+      - MQTT_PORT=1883
+      - SERIAL_PORT=/dev/ttyUSB0
+      - SERIAL_BAUD=115200
+    depends_on:
+      - mqtt_broker
+    networks:
+      - swachh_net
+
+networks:
+  swachh_net:
+    driver: bridge

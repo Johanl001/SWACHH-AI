@@ -1,0 +1,24 @@
+# SWACHH-AI YOLOv8 Training Dependencies
+# ═══════════════════════════════════════
+# Install: pip install -r requirements.txt
+
+# Core ML
+ultralytics>=8.1.0          # YOLOv8 framework
+torch>=2.1.0                # PyTorch backend
+torchvision>=0.16.0
+
+# Data Processing
+opencv-python>=4.8.0        # Image processing
+numpy>=1.24.0
+Pillow>=10.0.0
+
+# Export Targets
+onnx>=1.14.0                # ONNX export
+onnxruntime>=1.16.0         # ONNX inference
+tensorflow>=2.14.0          # TFLite export (full TF needed for INT8 calibration)
+
+# Utilities
+matplotlib>=3.7.0           # Training plots
+pandas>=2.0.0               # Results analysis
+pyyaml>=6.0                 # Config files
+tqdm>=4.65.0                # Progress bars
