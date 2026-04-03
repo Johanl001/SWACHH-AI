@@ -125,5 +125,15 @@ fastlane/test_output
 
 datasets/
 runs/
-*.pt
 *.zip
+
+# SWACHH-AI additions
+__pycache__
+*.pyc
+.env
+android/build
+ios/build
+logs/*.log
+mosquitto/data
+mosquitto/log
+mosquitto/config/passwd

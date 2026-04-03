@@ -29,6 +29,38 @@
 └─────────────────────────────────────────────────────────────┘
 ```
 
+## 🌟 Modules: Scope and Features
+
+### 1. Module A: Edge AI Vision (Raspberry Pi)
+*   **Scope:** Local video processing to classify waste, ensuring privacy and reducing bandwidth.
+*   **Object Detection:** YOLOv8 `.tflite` model classifies waste (Organic, Plastic, Paper, Metal).
+*   **Ultrasonic Trigger:** HC-SR04 sensor triggers camera inference only when an object is within 20cm (saves power).
+*   **Green Credits:** Dynamically assigns reward points based on the recyclability value of the waste.
+
+### 2. Module B: Hybrid IoT Communication (ESP-NOW & MQTT)
+*   **Scope:** Manages bin sensory data and handles reliable local-to-cloud networking.
+*   **ESP-NOW Mesh:** ESP32 nodes communicate via a peer-to-peer network, eliminating the need for local WiFi routers.
+*   **Power Efficiency:** ESP32s use Deep Sleep, waking up only to read sensors and broadcast payloads via ESP-NOW.
+*   **Smart Gateway:** A Raspberry Pi acts as a bridge, converting local ESP-NOW packets to JSON and publishing to the cloud.
+*   **MQTT Optimization:** Uses "state-change-only" logic to publish data only when capacity crosses specific thresholds (saving data).
+
+### 3. Module C: Gamified Citizen App (React Native)
+*   **Scope:** Cross-platform mobile app to incentivize proper waste segregation through gamification and rewards.
+*   **Eco-Rank Progression:** Users earn EXP to rank up (e.g., Bronze Scavenger to Gold Guardian) with visual progress bars.
+*   **Live Smart Map:** Real-time color-coded pins (Green/Yellow/Red) showing nearby bin availability to prevent walking to full bins.
+*   **Impact Tracking:** Translates recycled weight into tangible metrics (e.g., water saved, trees planted) via Daily Quests.
+*   **Redemption Store & i18n:** Spend Green Credits on city vouchers. Fully localized in English, Hindi, and Marathi.
+
+### 4. Module D: Logistics & Admin Dashboard (Next.js)
+*   **Scope:** Web dashboard for administrators to monitor bin metrics and optimize truck collection routes.
+*   **Live City Telemetry:** WebSockets (MQTT.js) display real-time fill levels and battery health on Google Maps.
+*   **A* Route Optimization:** Filters bins below 80% capacity and applies A* pathfinding for fuel-efficient collection routes.
+*   **Driver Navigation:** Provides drivers with an optimized sequence of bins and turn-by-turn routing with ETAs.
+
+### 5. YOLOv8 Training Pipeline
+*   **Scope:** ML backend to train, evaluate, and compress the visual model before deployment.
+*   **Features:** Multi-dataset merge utility (`data.yaml`), comprehensive data augmentation, and export optimizations (TFLite INT8 and ONNX).
+
 ## 📁 Project Structure
 
 | Directory          | Description                                       |

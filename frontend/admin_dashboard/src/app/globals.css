@@ -1,0 +1,56 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Manrope:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-primary: #0B0F19; /* Deep space dark */
+    --bg-secondary: #111827; /* Dark grayish blue */
+    --text-primary: #F9FAFB;
+    --text-secondary: #9CA3AF;
+  }
+  
+  html, body {
+    @apply bg-[#0B0F19] text-gray-100 font-sans antialiased min-h-screen overflow-hidden;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display tracking-tight text-white;
+  }
+}
+
+@layer components {
+  .glass-panel {
+    @apply bg-gray-900/40 backdrop-blur-md border border-white/10 rounded-2xl shadow-[0_4px_30px_rgba(0,0,0,0.1)];
+  }
+
+  .neon-glow {
+    @apply shadow-[0_0_15px_rgba(16,185,129,0.5)];
+  }
+  
+  .glass-button {
+    @apply relative overflow-hidden bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-semibold py-2 px-4 rounded-xl border border-emerald-500/30 transition-all duration-300 backdrop-blur-sm shadow-[0_0_10px_rgba(16,185,129,0.1)] hover:shadow-[0_0_20px_rgba(16,185,129,0.3)];
+  }
+
+  .glass-button-primary {
+    @apply relative overflow-hidden bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 px-6 rounded-xl shadow-[0_0_15px_rgba(16,185,129,0.4)] hover:shadow-[0_0_25px_rgba(16,185,129,0.6)] transition-all duration-300;
+  }
+}
+
+/* Custom Scrollbar for a sleek look */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(16, 185, 129, 0.3);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(16, 185, 129, 0.6);
+}

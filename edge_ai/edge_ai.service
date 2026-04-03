@@ -1,0 +1,15 @@
+[Unit]
+Description=SWACHH-AI Edge AI Service
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /home/pi/swachh_ai/edge_ai/main.py
+WorkingDirectory=/home/pi/swachh_ai/edge_ai
+User=pi
+Restart=always
+RestartSec=5
+StandardOutput=append:/home/pi/swachh_ai/edge_ai/logs/edge_ai.log
+StandardError=append:/home/pi/swachh_ai/edge_ai/logs/edge_ai.log
+
+[Install]
+WantedBy=multi-user.target

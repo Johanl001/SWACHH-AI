@@ -1,0 +1,25 @@
+[Unit]
+Description=SWACHH-AI Edge AI Image Classifier Service
+After=network.target network-online.target
+
+[Service]
+Type=simple
+User=pi
+# Change Group/User to your primary user if you're not using 'pi' (e.g., 'ubuntu' or your username)
+WorkingDirectory=/home/pi/swachh-ai/edge_ai
+ExecStart=/home/pi/swachh-ai/edge_ai/venv/bin/python main.py
+
+# Auto-restart on failure
+Restart=on-failure
+RestartSec=10
+
+# Environment variables
+# Change the broker if using a cloud broker like HiveMQ or AWS IoT
+Environment="MQTT_BROKER=localhost"
+Environment="MODEL_PATH=../models/yolov8_waste.tflite"
+
+# Ensure Python outputs everything directly without buffering
+Environment="PYTHONUNBUFFERED=1"
+
+[Install]
+WantedBy=multi-user.target

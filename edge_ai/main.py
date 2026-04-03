@@ -1,271 +1,108 @@
-"""
-SWACHH-AI — Edge AI Main Service
-=================================
-Main control loop that orchestrates:
-  1. Ultrasonic sensor polling (object detection)
-  2. Camera frame capture
-  3. YOLOv8 TFLite waste classification
-  4. Green Credit reward generation
-  5. MQTT publishing of rewards
+# SWACHH-AI — Edge AI
+# Team Strawhats | Sanjivani College of Engineering, Kopargaon
+# India Innovate 2026
 
-Designed for Raspberry Pi 4 + Pi Camera Module 3.
-"""
-
-import cv2
-import json
 import time
-import signal
-import sys
 import logging
-import logging.handlers
+import json
+import paho.mqtt.client as mqtt
+import cv2
+
+try:
+    from picamera2 import Picamera2
+    PICAMERA_AVAILABLE = True
+except ImportError:
+    PICAMERA_AVAILABLE = False
+try:
+    import RPi.GPIO as GPIO
+except ImportError:
+    pass
+
+import config
+from inference import WasteClassifier
+from sensor_trigger import UltrasonicSensor
+from green_credit import build_reward_payload
 import os
 
-import paho.mqtt.client as mqtt
+os.makedirs(os.path.dirname(config.LOG_FILE), exist_ok=True)
+logging.basicConfig(filename=config.LOG_FILE, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-from config import (
-    CAMERA_INDEX,
-    CAMERA_WIDTH,
-    CAMERA_HEIGHT,
-    CAMERA_FPS,
-    MQTT_BROKER,
-    MQTT_PORT,
-    MQTT_CLIENT_ID,
-    MQTT_TOPIC_REWARD,
-    LOG_LEVEL,
-    LOG_FILE,
-)
-from inference import WasteClassifier
-from sensor_trigger import UltrasonicTrigger
-from green_credit import GreenCreditEngine
-
-# ── Logging Setup ──────────────────────────
-os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
-
-logging.basicConfig(
-    level=getattr(logging, LOG_LEVEL),
-    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.handlers.RotatingFileHandler(
-            LOG_FILE, maxBytes=5_000_000, backupCount=3
-        ),
-    ],
-)
-logger = logging.getLogger("swachh.main")
-
-
-class SwachhEdgeAI:
-    """
-    Main service orchestrating the Edge AI pipeline.
-    
-    Flow:
-        ┌──────────┐     ┌────────────┐     ┌──────────┐     ┌────────┐
-        │ HC-SR04  │────→│ Pi Camera  │────→│ YOLOv8   │────→│ Green  │
-        │ Trigger  │     │ Capture    │     │ Classify │     │ Credit │
-        └──────────┘     └────────────┘     └──────────┘     └────┬───┘
-                                                                  │
-                                                           ┌──────▼──────┐
-                                                           │ MQTT Publish │
-                                                           └─────────────┘
-    """
-
-    def __init__(self):
-        logger.info("=" * 60)
-        logger.info("  SWACHH-AI Edge AI Service Starting...")
-        logger.info("=" * 60)
-
-        # Initialize components
-        self.sensor = UltrasonicTrigger()
-        self.classifier = WasteClassifier()
-        self.credit_engine = GreenCreditEngine()
-
-        # Initialize camera
-        self.camera = cv2.VideoCapture(CAMERA_INDEX)
-        self.camera.set(cv2.CAP_PROP_FRAME_WIDTH, CAMERA_WIDTH)
-        self.camera.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_HEIGHT)
-        self.camera.set(cv2.CAP_PROP_FPS, CAMERA_FPS)
-
-        if not self.camera.isOpened():
-            logger.error("❌ Failed to open camera!")
-            raise RuntimeError("Camera initialization failed")
-
-        logger.info(
-            f"📷 Camera initialized: {CAMERA_WIDTH}×{CAMERA_HEIGHT} @ {CAMERA_FPS}fps"
-        )
-
-        # Initialize MQTT client
-        self.mqtt_client = mqtt.Client(client_id=MQTT_CLIENT_ID)
-        self.mqtt_client.on_connect = self._on_mqtt_connect
-        self.mqtt_client.on_disconnect = self._on_mqtt_disconnect
-
-        try:
-            self.mqtt_client.connect(MQTT_BROKER, MQTT_PORT, keepalive=60)
-            self.mqtt_client.loop_start()
-        except Exception as e:
-            logger.warning(f"⚠️ MQTT connection failed: {e} — running in offline mode")
-            self.mqtt_connected = False
-
-        # State
-        self.running = True
-        self.cooldown_seconds = 3  # Prevent rapid re-triggers
-        self.last_trigger_time = 0
-
-    def _on_mqtt_connect(self, client, userdata, flags, rc):
-        if rc == 0:
-            logger.info("✅ Connected to MQTT broker")
-            self.mqtt_connected = True
-        else:
-            logger.error(f"❌ MQTT connection failed with code: {rc}")
-            self.mqtt_connected = False
-
-    def _on_mqtt_disconnect(self, client, userdata, rc):
-        logger.warning(f"⚠️ Disconnected from MQTT broker (rc={rc})")
-        self.mqtt_connected = False
-
-    def capture_frame(self):
-        """Capture a single frame from the Pi Camera."""
-        ret, frame = self.camera.read()
-        if not ret or frame is None:
-            logger.error("Failed to capture frame")
-            return None
-        return frame
-
-    def publish_reward(self, reward: dict):
-        """Publish reward data to MQTT broker."""
-        try:
-            payload = json.dumps(reward)
-            result = self.mqtt_client.publish(
-                MQTT_TOPIC_REWARD, payload, qos=1
-            )
-            if result.rc == mqtt.MQTT_ERR_SUCCESS:
-                logger.info(f"📤 Published reward to {MQTT_TOPIC_REWARD}")
-            else:
-                logger.warning(f"⚠️ MQTT publish failed: rc={result.rc}")
-        except Exception as e:
-            logger.error(f"MQTT publish error: {e}")
-
-    def process_disposal(self):
-        """
-        Full disposal event pipeline:
-        Capture → Classify → Reward → Publish
-        """
-        logger.info("🔄 Processing disposal event...")
-
-        # Capture frame
-        frame = self.capture_frame()
-        if frame is None:
-            return
-
-        # Run classification
-        annotated_frame, detections = self.classifier.classify_and_annotate(frame)
-
-        if not detections:
-            logger.info("No waste detected in frame — skipping")
-            return
-
-        # Log detections
-        for det in detections:
-            logger.info(
-                f"  🏷️  {det['class']} ({det['confidence']:.0%}) "
-                f"@ [{det['bbox']}]"
-            )
-
-        # Compute reward (using placeholder user_id — real system uses NFC/QR)
-        reward = self.credit_engine.compute_reward(
-            detections, user_id="citizen_001"
-        )
-
-        if reward:
-            # Generate verification signal
-            signal = self.credit_engine.generate_verification_signal(reward)
-            logger.info(f"✅ Verification signal:\n{signal}")
-
-            # Publish to MQTT
-            self.publish_reward(reward)
-
-        # Optionally save annotated frame for debugging
-        debug_path = f"logs/detection_{int(time.time())}.jpg"
-        cv2.imwrite(debug_path, annotated_frame)
-        logger.debug(f"Saved debug frame: {debug_path}")
-
-    def run(self):
-        """
-        Main event loop.
-        
-        Poll ultrasonic sensor → On trigger → Capture & Classify → Reward
-        """
-        logger.info("🚀 Edge AI service running — waiting for objects...")
-
-        while self.running:
-            try:
-                # Check if object is within trigger distance
-                if self.sensor.is_object_detected():
-                    # Cooldown check to prevent rapid re-triggers
-                    now = time.time()
-                    if now - self.last_trigger_time >= self.cooldown_seconds:
-                        self.last_trigger_time = now
-                        self.process_disposal()
-                    else:
-                        remaining = self.cooldown_seconds - (now - self.last_trigger_time)
-                        logger.debug(
-                            f"Cooldown active — {remaining:.1f}s remaining"
-                        )
-
-                # Small sleep to prevent CPU hammering
-                time.sleep(0.1)
-
-            except KeyboardInterrupt:
-                logger.info("Keyboard interrupt received")
-                break
-            except Exception as e:
-                logger.error(f"Error in main loop: {e}", exc_info=True)
-                time.sleep(1)  # Prevent tight error loop
-
-        self.shutdown()
-
-    def shutdown(self):
-        """Graceful shutdown — release all resources."""
-        logger.info("Shutting down Edge AI service...")
-        self.running = False
-
-        if self.camera.isOpened():
-            self.camera.release()
-            logger.info("Camera released")
-
-        self.sensor.cleanup()
-
-        try:
-            self.mqtt_client.loop_stop()
-            self.mqtt_client.disconnect()
-        except Exception:
-            pass
-
-        # Print session summary
-        summary = self.credit_engine.get_session_summary()
-        logger.info(
-            f"\n{'=' * 40}\n"
-            f"  Session Summary\n"
-            f"  Items Processed: {summary['total_items']}\n"
-            f"  Credits Awarded: {summary['total_credits']}\n"
-            f"  Avg Credits/Item: {summary['avg_credits_per_item']}\n"
-            f"{'=' * 40}"
-        )
-
+def on_connect(client, userdata, flags, rc):
+    if rc == 0:
+        logging.info("Connected to MQTT Broker!")
+    else:
+        logging.error(f"Failed to connect to MQTT broker, return code {rc}")
 
 def main():
-    """Entry point."""
-    service = SwachhEdgeAI()
+    logging.info("Starting Edge AI Service")
+    
+    sensor = UltrasonicSensor(config.TRIGGER_PIN, config.ECHO_PIN)
+    classifier = WasteClassifier(config.MODEL_PATH, config.CONFIDENCE_THRESHOLD)
+    
+    client = mqtt.Client()
+    client.username_pw_set(config.MQTT_USER, config.MQTT_PASS)
+    client.will_set("swachh/alert", json.dumps({"bin_id": "edge_ai", "alert": "offline"}), qos=1, retain=True)
+    client.on_connect = on_connect
+    
+    try:
+        client.connect(config.MQTT_BROKER, config.MQTT_PORT, 60)
+        client.loop_start()
+    except Exception as e:
+        logging.error(f"MQTT connection failed: {e}")
 
-    # Graceful shutdown on SIGTERM (Docker stop)
-    def signal_handler(sig, frame):
-        logger.info(f"Signal {sig} received — shutting down")
-        service.running = False
+    if PICAMERA_AVAILABLE:
+        try:
+            picam = Picamera2()
+            picam.start_and_record()
+        except Exception as e:
+            logging.error(f"Picamera2 init failed: {e}")
+            PICAMERA_AVAILABLE = False
+            
+    cap = None
+    if not PICAMERA_AVAILABLE:
+        cap = cv2.VideoCapture(0)
 
-    signal.signal(signal.SIGTERM, signal_handler)
-    signal.signal(signal.SIGINT, signal_handler)
+    try:
+        while True:
+            if sensor.is_triggered(config.TRIGGER_DISTANCE_CM):
+                logging.info("Motion detected!")
+                frame = None
+                try:
+                    if PICAMERA_AVAILABLE:
+                        frame = picam.capture_array()
+                    elif cap:
+                        ret, frame = cap.read()
+                        if not ret:
+                            frame = None
+                except Exception as e:
+                    logging.error(f"Camera capture failed: {e}")
 
-    service.run()
-
+                if frame is not None:
+                    result = classifier.predict(frame)
+                    if result:
+                        logging.info(f"Waste detected: {result}")
+                        payload = build_reward_payload(
+                            user_id="demo_user_001",
+                            waste_type=result["class_name"],
+                            confidence=result["confidence"],
+                            bin_id="BIN_001"
+                        )
+                        try:
+                            client.publish("swachh/user_reward", json.dumps(payload), qos=1)
+                            logging.info("Reward payload published")
+                        except Exception as e:
+                            logging.error(f"MQTT publish failed: {e}")
+                time.sleep(2) # delay to avoid rapid retriggers
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        logging.info("Edge AI Service stopping via KeyboardInterrupt")
+    finally:
+        if 'GPIO' in globals():
+            GPIO.cleanup()
+        client.loop_stop()
+        client.disconnect()
+        if cap:
+            cap.release()
 
 if __name__ == "__main__":
     main()
