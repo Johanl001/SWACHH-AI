@@ -120,6 +120,8 @@ npm run dev
 | Bin Nodes              | ESP32 DevKit v1              |
 | Distance Sensor        | HC-SR04 Ultrasonic           |
 | AI Model               | YOLOv8n (quantized `.tflite`)|
+## Preview 
+<img width="1895" height="821" alt="Screenshot 2026-04-03 194904" src="https://github.com/user-attachments/assets/7f6ff514-ff25-4a21-9897-58737a0304bd" />
 
 ## 📜 License
 
