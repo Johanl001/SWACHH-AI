@@ -122,6 +122,8 @@ npm run dev
 | AI Model               | YOLOv8n (quantized `.tflite`)|
 ## Preview 
 <img width="1895" height="821" alt="Screenshot 2026-04-03 194904" src="https://github.com/user-attachments/assets/7f6ff514-ff25-4a21-9897-58737a0304bd" />
+<img width="1887" height="851" alt="Screenshot 2026-04-03 194921" src="https://github.com/user-attachments/assets/54b978ec-47aa-4eff-a724-bda025084f37" />
+<img width="1896" height="817" alt="Screenshot 2026-04-03 194940" src="https://github.com/user-attachments/assets/817f4fbd-c91a-4fb0-8723-28f12c2400ad" />
 
 ## 📜 License
 
